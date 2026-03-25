@@ -1,0 +1,18 @@
+{
+  "manifest_version": 3,
+  "name": "Chess Arrows for YouTube",
+  "version": "1.0",
+  "description": "Dibuja flechas de ajedrez sobre videos de YouTube con click derecho",
+  "content_scripts": [
+    {
+      "matches": ["*://www.youtube.com/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "icons": {
+    "16": "icon.png",
+    "48": "icon.png",
+    "128": "icon.png"
+  }
+}
