@@ -4,7 +4,7 @@ A Chrome extension that lets you draw chess-style arrows over any YouTube video 
 
 Perfect for following along with chess content creators without losing track of the moves you're calculating.
 
-![Arrow example](icon.png)
+![Demo](screenshot.png)
 
 ---
 
