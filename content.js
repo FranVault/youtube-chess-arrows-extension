@@ -13,8 +13,8 @@
   // ── Colores ────────────────────────────────────────────────────
   const ARROW_COLOR   = '#F6A623';   // amarillo-naranja chess.com
   const ARROW_OPACITY = 0.85;
-  const STROKE_WIDTH  = 6;           // grosor del tallo
-  const HEAD_SIZE     = 18;          // tamaño de la punta
+  const STROKE_WIDTH  = 10;          // grosor del tallo
+  const HEAD_SIZE     = 24;          // tamaño de la punta
 
   // ── Inicialización (espera hasta que el video cargue) ──────────
   function init () {
@@ -111,8 +111,13 @@
       overlay.appendChild(currentArrow);
 
     } else if (e.button === 0) {
-      // Click izquierdo → borrar todo
-      clearArrows();
+      // Click izquierdo → si hay flechas, borrarlas y bloquear la pausa
+      // Si no hay flechas, dejar pasar el click normalmente (pausa/reproduce)
+      if (arrows.length > 0 || currentArrow) {
+        e.preventDefault();
+        e.stopPropagation();
+        clearArrows();
+      }
     }
   }
 
