@@ -11,7 +11,7 @@
   let videoContainer = null;
 
   // ── Colores ────────────────────────────────────────────────────
-  const ARROW_COLOR   = '#F6A623';   // amarillo-naranja chess.com
+  const ARROW_COLOR   = '#54B8F0';   // celeste azul claro
   const ARROW_OPACITY = 0.85;
   const STROKE_WIDTH  = 10;          // grosor del tallo
   const HEAD_SIZE     = 24;          // tamaño de la punta
@@ -21,18 +21,27 @@
     const video = document.querySelector('video');
     if (!video) return;
 
-    videoContainer = video.parentElement;
+    // Subir por el DOM hasta encontrar el contenedor real del player
+    // YouTube usa #movie_player > div.html5-video-container > video
+    let el = video;
+    while (el && el !== document.body) {
+      if (el.id === 'movie_player' || el.classList.contains('html5-video-player')) {
+        videoContainer = el;
+        break;
+      }
+      el = el.parentElement;
+    }
+    if (!videoContainer) videoContainer = video.parentElement;
     if (!videoContainer) return;
 
-    // Asegurarse de que el contenedor tenga posición relativa
     const cs = getComputedStyle(videoContainer);
-    if (cs.position === 'static') {
-      videoContainer.style.position = 'relative';
-    }
+    if (cs.position === 'static') videoContainer.style.position = 'relative';
 
     createOverlay(video);
     attachEvents();
   }
+
+  let justCleared = false;  // flag para bloquear el click que sigue al mousedown
 
   // ── Crear el SVG overlay ───────────────────────────────────────
   function createOverlay (video) {
@@ -41,7 +50,6 @@
     overlay = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     overlay.id = 'yt-chess-arrows-overlay';
 
-    // Definir el marcador de punta de flecha
     const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
     const marker = document.createElementNS('http://www.w3.org/2000/svg', 'marker');
     marker.setAttribute('id', 'arrowhead');
@@ -57,34 +65,30 @@
     defs.appendChild(marker);
     overlay.appendChild(defs);
 
-    // Posicionamiento absoluto encima del video
     Object.assign(overlay.style, {
       position:      'absolute',
       top:           '0',
       left:          '0',
       width:         '100%',
       height:        '100%',
-      pointerEvents: 'none',   // los eventos van al handler del container
+      pointerEvents: 'none',
       zIndex:        '9999',
     });
 
     videoContainer.appendChild(overlay);
-    syncOverlaySize(video);
+    syncOverlaySize();
 
-    // Mantener el SVG sincronizado si el video cambia de tamaño
-    new ResizeObserver(() => syncOverlaySize(video)).observe(video);
+    new ResizeObserver(() => syncOverlaySize()).observe(videoContainer);
   }
 
-  function syncOverlaySize (video) {
+  function syncOverlaySize () {
     if (!overlay) return;
-    overlay.setAttribute('viewBox', `0 0 ${video.clientWidth} ${video.clientHeight}`);
-    overlay.style.width  = video.clientWidth  + 'px';
-    overlay.style.height = video.clientHeight + 'px';
-    // Reacomodar el overlay respecto al video (puede estar desplazado)
-    const vr = video.getBoundingClientRect();
     const cr = videoContainer.getBoundingClientRect();
-    overlay.style.left = (vr.left - cr.left) + 'px';
-    overlay.style.top  = (vr.top  - cr.top)  + 'px';
+    overlay.setAttribute('viewBox', `0 0 ${cr.width} ${cr.height}`);
+    overlay.style.width  = cr.width  + 'px';
+    overlay.style.height = cr.height + 'px';
+    overlay.style.left   = '0px';
+    overlay.style.top    = '0px';
   }
 
   // ── Eventos ────────────────────────────────────────────────────
@@ -94,6 +98,7 @@
     videoContainer.addEventListener('mousemove',  onMouseMove,  true);
     videoContainer.addEventListener('mouseup',    onMouseUp,    true);
     videoContainer.addEventListener('contextmenu', onContextMenu, true);
+    videoContainer.addEventListener('click',      onClickBlock, true);
   }
 
   function onMouseDown (e) {
@@ -112,12 +117,22 @@
 
     } else if (e.button === 0) {
       // Click izquierdo → si hay flechas, borrarlas y bloquear la pausa
-      // Si no hay flechas, dejar pasar el click normalmente (pausa/reproduce)
       if (arrows.length > 0 || currentArrow) {
         e.preventDefault();
         e.stopPropagation();
+        justCleared = true;
         clearArrows();
       }
+    }
+  }
+
+  // Bloquea el evento 'click' que YouTube usa para pausar/reproducir
+  function onClickBlock (e) {
+    if (!isOverVideo(e)) return;
+    if (justCleared) {
+      e.preventDefault();
+      e.stopPropagation();
+      justCleared = false;
     }
   }
 
@@ -149,27 +164,29 @@
   }
 
   function onContextMenu (e) {
-    if (isOverVideo(e)) {
-      e.preventDefault();
-      e.stopPropagation();
-    }
+    // Bloquear siempre el menú contextual dentro del player
+    e.preventDefault();
+    e.stopPropagation();
   }
 
   // ── Helpers ────────────────────────────────────────────────────
+  // True si el cursor está dentro del player (video + barras negras)
+  // Excluimos solo la barra de controles inferior (últimos 44px) para
+  // no interferir con la barra de progreso de YouTube
   function isOverVideo (e) {
-    const video = videoContainer.querySelector('video');
-    if (!video) return false;
-    const r = video.getBoundingClientRect();
+    const r = videoContainer.getBoundingClientRect();
+    const controlsHeight = 44;
     return (
-      e.clientX >= r.left && e.clientX <= r.right &&
-      e.clientY >= r.top  && e.clientY <= r.bottom
+      e.clientX >= r.left &&
+      e.clientX <= r.right &&
+      e.clientY >= r.top &&
+      e.clientY <= r.bottom - controlsHeight
     );
   }
 
-  /** Convierte coordenadas de pantalla a coordenadas del SVG */
+  /** Convierte coordenadas de pantalla a coordenadas del SVG (relativas al player) */
   function videoPos (e) {
-    const video = videoContainer.querySelector('video');
-    const r = video.getBoundingClientRect();
+    const r = videoContainer.getBoundingClientRect();
     return {
       x: e.clientX - r.left,
       y: e.clientY - r.top,
